@@ -9,13 +9,9 @@
 #import <Foundation/Foundation.h>
 #import <StoreKit/StoreKit.h>
 
-extern NSString * const LCPurchaseProductsRetrievedNotification;
-extern NSString * const LCPurchaseProductsResult ;
-
 @interface LCPurchaseHelper : NSObject
 @property (nonatomic,strong) NSArray * products;
 @property (nonatomic,strong) NSArray * validProducts;
-@property (nonatomic,copy) void(^getProductsBack)(NSArray<SKProduct *> *);
 
 +(instancetype)share;
 

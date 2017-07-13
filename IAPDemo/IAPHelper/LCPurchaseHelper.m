@@ -47,9 +47,27 @@
 
 @end
 
-NSString * const LCPurchaseProductsRetrievedNotification = @"LCPurchaseProductsRetrievedNotification";
+@interface SKProduct (ProductDescription)
 
-NSString * const LCPurchaseProductsResult = @"LCPurchaseProductsResult";
+-(void)infomationDescription;
+
+@end
+
+@implementation SKProduct (ProductDescription)
+
+-(void)infomationDescription
+{
+    NSLog(@"...>>>  \n");
+    NSLog(@"localizedTitle                      -->  %@", [self localizedTitle]);
+    NSLog(@"localizedDescription                -->  %@", [self localizedDescription]);
+    NSLog(@"price                               -->  %@", [self price]);
+    NSLog(@"priceLocale NSLocaleCurrencySymbol  -->  %@", [self.priceLocale objectForKey:NSLocaleCurrencySymbol]);
+    NSLog(@"priceLocale NSLocaleCurrencyCode    -->  %@", [self.priceLocale objectForKey:NSLocaleCurrencyCode]);
+    NSLog(@"productIdentifier                   -->  %@", [self productIdentifier]);
+}
+
+@end
+
 NSString * const TestReciptURL = @"https://sandbox.itunes.apple.com/verifyReceipt";
 NSString * const ProductionReciptURL = @"https://buy.itunes.apple.com/verifyReceipt";
 
@@ -59,6 +77,7 @@ static LCPurchaseHelper * helper = nil;
 @interface LCPurchaseHelper ()<SKProductsRequestDelegate,SKPaymentTransactionObserver>
 
 @property (nonatomic,strong) SKProductsRequest * pRequest;
+@property (nonatomic,copy) void(^getProductsBack)(NSArray<SKProduct *> *);
 
 @end
 
@@ -117,8 +136,6 @@ static LCPurchaseHelper * helper = nil;
     return container.copy;
 }
 
-
-
 #pragma mark - SKProductsRequestDelegate
 - (void)productsRequest:(SKProductsRequest *)request didReceiveResponse:(SKProductsResponse *)response{
     
@@ -128,23 +145,13 @@ static LCPurchaseHelper * helper = nil;
     self.validProducts = [self validProducts:response.products andInvalidIds:response.invalidProductIdentifiers];
     
     for (SKProduct * p in self.products) {
-        NSLog(@"...>>>  \n");
-        NSLog(@"localizedTitle                      -->  %@", [p localizedTitle]);
-        NSLog(@"localizedDescription                -->  %@", [p localizedDescription]);
-        NSLog(@"price                               -->  %@", [p price]);
-        NSLog(@"priceLocale NSLocaleCurrencySymbol  -->  %@", [p.priceLocale objectForKey:NSLocaleCurrencySymbol]);
-        NSLog(@"priceLocale NSLocaleCurrencyCode    -->  %@", [p.priceLocale objectForKey:NSLocaleCurrencyCode]);
-        NSLog(@"productIdentifier                   -->  %@", [p productIdentifier]);
+        [p infomationDescription];
     }
     
     if(self.getProductsBack){
         self.getProductsBack(self.products);
     }
-    else {
-      [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsRetrievedNotification object:nil userInfo:@{@"products":[self.products copy]}];
-      
-//      [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsRetrievedNotification object:nil userInfo:@{@"products":[self.validProducts copy]}];
-    }
+
 }
 
 
@@ -218,8 +225,6 @@ static LCPurchaseHelper * helper = nil;
 -(void)purchaseHasRestoreWithTransaction:(SKPaymentTransaction *)transaction andDescription:(NSString *)description
 {
   [[SKPaymentQueue defaultQueue] restoreCompletedTransactions];
-  [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsResult object:nil userInfo:
-   @{@"errorCode":@(0),@"transaction":transaction,@"description":description}];
 }
 
 //购买失败
@@ -229,9 +234,6 @@ static LCPurchaseHelper * helper = nil;
         NSLog(@"交易失败信息：%@",transaction.error);
         [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
     }
-    
-  [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsResult object:nil userInfo:
-   @{@"errorCode":@(1),@"transaction":transaction,@"description":description}];
 }
 
 //发送receipt给苹果
@@ -242,6 +244,11 @@ static LCPurchaseHelper * helper = nil;
         NSLog(@"没有获取到凭证，本地无凭证或者无交易对象");
         return ;
     }
+    [self verifyReciptInAppWithReceiptString:receipt andTranscation:transaction];
+}
+
+-(void)verifyReciptInAppWithReceiptString:(NSString *)receipt andTranscation:(SKPaymentTransaction *)transcation
+{
     NSError *error;
     NSDictionary *requestContents = @{
                                       @"receipt-data": receipt
@@ -253,9 +260,9 @@ static LCPurchaseHelper * helper = nil;
     NSMutableURLRequest * request = [NSMutableURLRequest requestWithURL:storeURL];
     request.HTTPMethod = @"POST";
     request.HTTPBody = requestData;
-
+    
     NSURLSession * session = [NSURLSession sharedSession];
-
+    
     NSURLSessionDataTask * task = [session dataTaskWithRequest:request completionHandler:^(NSData * _Nullable data, NSURLResponse * _Nullable response, NSError * _Nullable error) {
         if (error){
             NSLog(@"request error :%@",[error localizedDescription]);
@@ -267,11 +274,10 @@ static LCPurchaseHelper * helper = nil;
         }
         NSLog(@"response info:%@",dict);
         if([dict[@"status"] integerValue] == 0){
-//            [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
+            //            [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
         }
     }];
     [task resume];
-    
 }
 
 //获取凭证
@@ -285,15 +291,11 @@ static LCPurchaseHelper * helper = nil;
 //receipt去苹果验证成功后
 -(void)serverValidReceiptSuccessWithTransaction:(SKPaymentTransaction *)transaction{
   [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
-  [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsResult object:nil userInfo:
-   @{@"errorCode":@(0),@"transaction":transaction,@"description":@"验证成功"}];
 }
 
 //receipt去苹果验证失败后
 -(void)serverValidReceiptFailedWithTransaction:(SKPaymentTransaction *)transaction
 {
-  [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsResult object:nil userInfo:
-   @{@"errorCode":@(1),@"transaction":transaction,@"description":@"验证失败"}];
 }
 
 
