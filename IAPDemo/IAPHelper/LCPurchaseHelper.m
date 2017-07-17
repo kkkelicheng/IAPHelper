@@ -163,6 +163,7 @@ static LCPurchaseHelper * helper = nil;
       NSString * description = @"";
         switch (transaction.transactionState) {
             case SKPaymentTransactionStatePurchasing:{
+                //当这个商品没有结束购买的时候，再次购买会出现这个，会免费恢复
                 description = @"交易已经提交";
               [self purchaseProductFailed:transaction withDescription:description];
                 break;
@@ -274,7 +275,7 @@ static LCPurchaseHelper * helper = nil;
         }
         NSLog(@"response info:%@",dict);
         if([dict[@"status"] integerValue] == 0){
-            //            [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
+//                        [[SKPaymentQueue defaultQueue] finishTransaction: transcation];
         }
     }];
     [task resume];
