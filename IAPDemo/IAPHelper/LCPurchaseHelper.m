@@ -140,18 +140,18 @@ static LCPurchaseHelper * helper = nil;
 - (void)productsRequest:(SKProductsRequest *)request didReceiveResponse:(SKProductsResponse *)response{
     
     self.products = response.products;
-
-    NSLog(@"invalidProductIdentifiers:%@",response.invalidProductIdentifiers);
-    self.validProducts = [self validProducts:response.products andInvalidIds:response.invalidProductIdentifiers];
-    
+    //打印所有的商品
     for (SKProduct * p in self.products) {
         [p infomationDescription];
     }
     
+    NSLog(@"invalidProductIdentifiers:%@",response.invalidProductIdentifiers);
+    self.validProducts = [self validProducts:response.products andInvalidIds:response.invalidProductIdentifiers];
+    
+    //返回能被苹果store识别的商品
     if(self.getProductsBack){
-        self.getProductsBack(self.products);
+        self.getProductsBack(self.validProducts);
     }
-
 }
 
 
@@ -206,7 +206,8 @@ static LCPurchaseHelper * helper = nil;
     [[SKPaymentQueue defaultQueue] removeTransactionObserver:self];
 }
 
-#pragma mark - Purchase
+#pragma mark - Purchase 对外的接口
+// 购买商品！
 -(void)purchaseWithProduct:(SKProduct *)product
                  andUserId:(NSString *)userId
                   andCount:(NSInteger)count
@@ -214,6 +215,8 @@ static LCPurchaseHelper * helper = nil;
     if (product && userId){
         SKMutablePayment *payment = [SKMutablePayment paymentWithProduct:product];
         payment.quantity = count;
+        // 这里 applicationUsername 可以灵活处理，很重要。发挥想象解决业务问题
+        // 这个SKPayment app会自己做持久化，即使app删除。所以把需要的信息压缩下记录到服务器，返回一个orderID，可以将这个orderID放到这里
         payment.applicationUsername = userId;
         [[SKPaymentQueue defaultQueue] addPayment:payment];
     }
@@ -233,6 +236,7 @@ static LCPurchaseHelper * helper = nil;
 {
     if(transaction.error){
         NSLog(@"交易失败信息：%@",transaction.error);
+        // 假如需要告诉服务器失败，在请求回来之后再结束本地的交易
         [[SKPaymentQueue defaultQueue] finishTransaction: transaction];
     }
 }
@@ -274,9 +278,8 @@ static LCPurchaseHelper * helper = nil;
             NSLog(@"jsonError:%@",jsonError);
         }
         NSLog(@"response info:%@",dict);
-        if([dict[@"status"] integerValue] == 0){
-//                        [[SKPaymentQueue defaultQueue] finishTransaction: transcation];
-        }
+        [self serverValidReceiptResultWithTransaction:transcation andIsSuccess:[dict[@"status"] integerValue] == 0];
+          
     }];
     [task resume];
 }
@@ -284,20 +287,28 @@ static LCPurchaseHelper * helper = nil;
 //获取凭证
 -(NSData *)getReceiptDataWithTranscation:(SKPaymentTransaction *)transcation
 {
+    //关于票据的持久化 可以看看苹果的文档
+    //对于消费型产品：苹果自己在本地更新，删除票据信息。
+    //对于非消费型产品：苹果会自己持久化票据信息。
+    
     NSURL *receiptURL = [[NSBundle mainBundle] appStoreReceiptURL];
     NSData *data = [NSData dataWithContentsOfURL:receiptURL];
+    //If the appStoreReceiptURL method is not available, you can fall back to the value of a transaction's transactionReceipt property for backward compatibility
     return data ?: transcation.transactionReceipt;
 }
 
-//receipt去苹果验证成功后
--(void)serverValidReceiptSuccessWithTransaction:(SKPaymentTransaction *)transaction{
-  [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
+//receipt去验证后处理
+- (void)serverValidReceiptResultWithTransaction:(SKPaymentTransaction *)transaction andIsSuccess:(BOOL)isSuccess
+{
+    if(isSuccess){
+        [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
+    }
+    else {
+        // 检查一下苹果返回的错误代码
+        // POST 到服务器的时候可能会有问题 base64转码的时候加号等会变
+    }
 }
 
-//receipt去苹果验证失败后
--(void)serverValidReceiptFailedWithTransaction:(SKPaymentTransaction *)transaction
-{
-}
 
 
 @end
