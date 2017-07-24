@@ -11,7 +11,7 @@
 NSString * const LCPurchaseProductsRetrievedNotification = @"LCPurchaseProductsRetrievedNotification";
 
 NSString * const LCPurchaseProductsResult = @"LCPurchaseProductsResult";
-NSString * TestReciptURL = @"http://210.21.94.38/APP_SEV/cn/ios/order/save";
+NSString * TestReciptURL = @"自己的服务器地址/ 测试也可以在本地验证";
 
 static LCPurchaseHelper * helper = nil;
 
