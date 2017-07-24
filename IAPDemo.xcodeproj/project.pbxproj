@@ -7,7 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		0E03921D1F1723AB00E2F2F5 /* LCPurchaseHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 0E03921C1F1723AB00E2F2F5 /* LCPurchaseHelper.m */; };
+		0E03937F1F258B3400E2F2F5 /* LCPurchaseHelper.m in Sources */ = {isa = PBXBuildFile; fileRef = 0E03921C1F1723AB00E2F2F5 /* LCPurchaseHelper.m */; };
 		0ED477531F0383220018165B /* main.m in Sources */ = {isa = PBXBuildFile; fileRef = 0ED477521F0383220018165B /* main.m */; };
 		0ED477561F0383220018165B /* AppDelegate.m in Sources */ = {isa = PBXBuildFile; fileRef = 0ED477551F0383220018165B /* AppDelegate.m */; };
 		0ED477591F0383220018165B /* ViewController.m in Sources */ = {isa = PBXBuildFile; fileRef = 0ED477581F0383220018165B /* ViewController.m */; };
@@ -186,9 +186,9 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0E03937F1F258B3400E2F2F5 /* LCPurchaseHelper.m in Sources */,
 				0ED477591F0383220018165B /* ViewController.m in Sources */,
 				0ED477561F0383220018165B /* AppDelegate.m in Sources */,
-				0E03921D1F1723AB00E2F2F5 /* LCPurchaseHelper.m in Sources */,
 				0ED4777A1F04E5410018165B /* ProductsCell.m in Sources */,
 				0ED477531F0383220018165B /* main.m in Sources */,
 			);
