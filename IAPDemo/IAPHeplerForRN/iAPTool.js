@@ -20,10 +20,11 @@ let productsListen = null;
 let buyResultListen = null;
 let matchInfo = null;
 let waitForGetProductFormAppleThenRequest = false;
+let noProductHandler = null;
 
 // --->  加载的时候加载商品 点击购买 ----> 查看有没有商品 ---> 有商品请求订单id ---->有商品就购买bugProduct
 
-function listenProducsWithMatchInfo(match,e){
+function listenProducsWithMatchInfo(match,e,pe){
 
     matchInfo = match;
 
@@ -31,12 +32,18 @@ function listenProducsWithMatchInfo(match,e){
         'RNEventReceivedProducts',
         (data) => {
             console.log('RNEventReceivedProducts:',data);
-            if(data.products){
+            const errorCode = data.errorCode;
+            if(errorCode == 0){
                 products = data.products;
+                console.log('waitForGetProductFormAppleThenRequest status:',waitForGetProductFormAppleThenRequest);
                 if (waitForGetProductFormAppleThenRequest) {
                     waitForGetProductFormAppleThenRequest = false;
-                    data.products.length && getOrderIdWithInfo(matchInfo,products[0]);
+                        console.log('waitForGetProductFormAppleThenRequest true and buyProductsWithOrder');
+                        buyProductsWithOrder(matchInfo.matchId);
                 }
+            }
+            else {
+                pe(data);
             }
         }
     );
@@ -49,44 +56,60 @@ function listenProducsWithMatchInfo(match,e){
         }
     );
 
-    getProducts();
 }
 
 function removeListen(){
     productsListen.remove();
     buyResultListen.remove();
+    noProductHandler = null;
 }
 
+function checkExistOrderInfo(e){
+    IAPManager.getUnFinishOrder((orderInfo)=>{
+       e(orderInfo);
+    })
+}
+
+function buyProductsWithOrder(matchId){
+    IAPManager.getUnFinishOrder((orderInfo)=>{
+        if(orderInfo && orderInfo.orderId != '-1'){
+            continuePurchaseWithInfo(products[0],orderInfo.orderId,matchId);
+        }
+        else {
+            getOrderIdWithInfo(matchInfo,products[0],matchId);
+        }
+    })
+}
 
 //一鍵購買
-function bugProduct(){
-     if (products) {
-         if (products.length){
-             getOrderIdWithInfo(matchInfo,products[0]);
-         }
-         else {
-             console.log('維護到商品,商品列表為空')
-         }
+function bugProduct(matchId){
+     if (products && products.length > 0) {
+         console.log('一键购买 product exist');
+            buyProductsWithOrder(matchId);
      }
      else {
          waitForGetProductFormAppleThenRequest = true;
+         getProducts();
      }
 }
 
-function consumeProductWithID(userID){
+function consumeProductWithID(userID,matchId){
     if (products.length > 0){
         let p = products[0];
         let pID = p.pID;
         // let userId = device.getDeviceId();
         let count = 1;
-        IAPManager.chooseProducts(pID,userID,count);
+        IAPManager.chooseProducts(pID,userID,count,matchId);
     }
 }
 
+function continuePurchaseWithInfo(product,orderId,matchId){
+    let pID = product.pID;
+    IAPManager.continuePurchaseProducts(pID,orderId,1,matchId);
+}
+
 function getProducts(){
-    if (!products){
         IAPManager.getProductsWithIds(productIDs);
-    }
 }
 
 function handleMatchData(matchInfo,productID){
@@ -117,7 +140,7 @@ function handleMatchData(matchInfo,productID){
 
 }
 
-function getOrderIdWithInfo(data,product){
+function getOrderIdWithInfo(data,product,matchId){
     handleMatchData(data,product.pID).then(
         (matchData)=>{
             orderServer.getOrderID(matchData).then(
@@ -125,7 +148,7 @@ function getOrderIdWithInfo(data,product){
                     console.log('getOrderID reqData:',reqData);
                     // 得到orderid 然後 consumeProductWithID(orderid)
                     if(reqData.errorCode == 'success' && reqData.data){
-                        consumeProductWithID(reqData.data)
+                        consumeProductWithID(reqData.data,matchId)
                     }
                 }
                 ,
@@ -137,7 +160,11 @@ function getOrderIdWithInfo(data,product){
     );
 }
 
-export {listenProducsWithMatchInfo,removeListen,bugProduct}
+function goSystemSetting() {
+    IAPManager.goSystemSetting();
+}
+
+export {listenProducsWithMatchInfo,removeListen,bugProduct,checkExistOrderInfo,goSystemSetting}
 
 
 /*

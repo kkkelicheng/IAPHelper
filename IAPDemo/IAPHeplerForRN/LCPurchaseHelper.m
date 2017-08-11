@@ -11,8 +11,8 @@
 NSString * const LCPurchaseProductsRetrievedNotification = @"LCPurchaseProductsRetrievedNotification";
 
 NSString * const LCPurchaseProductsResult = @"LCPurchaseProductsResult";
-NSString * TestReciptURL = @"自己的服务器地址/ 测试也可以在本地验证";
-
+NSString * const LCOrderRecordKey = @"LCOrderRecordKey";
+static NSString * reciptUrl = nil;
 static LCPurchaseHelper * helper = nil;
 
 @interface LCPurchaseHelper ()<SKProductsRequestDelegate,SKPaymentTransactionObserver>
@@ -54,6 +54,7 @@ static LCPurchaseHelper * helper = nil;
     }
     else {
         NSLog(@"用户未允许付费");
+       [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsRetrievedNotification object:nil userInfo:@{@"products":@[],@"errorCode":@(2)}];
     }
 }
 
@@ -95,7 +96,7 @@ static LCPurchaseHelper * helper = nil;
         NSLog(@"%@", [p productIdentifier]);
     }
 
-      [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsRetrievedNotification object:nil userInfo:@{@"products":[self.products copy]}];
+  [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsRetrievedNotification object:nil userInfo:@{@"products":[self.products copy],@"errorCode":self.products.count == 0 ? @(1) : @(0)}];
 }
 
 
@@ -107,34 +108,34 @@ static LCPurchaseHelper * helper = nil;
       NSString * description = @"";
         switch (transaction.transactionState) {
             case SKPaymentTransactionStatePurchasing:{
-                description = @"交易已经提交";
+                description = @"交易已經提交";
               [self purchaseHandleErrorCode:SKPaymentTransactionStatePurchasing transcation:transaction description:description];
                 break;
             }
             case SKPaymentTransactionStateDeferred: {
-                description = @"交易正在处理中";
+                description = @"交易正在處理中";
                [self purchaseHandleErrorCode:SKPaymentTransactionStateDeferred transcation:transaction description:description];
                 break;
             }
             case SKPaymentTransactionStateRestored:{
-                description = @"交易恢复购买商品";
+                description = @"交易恢復購買商品";
                [self purchaseHandleErrorCode:SKPaymentTransactionStateRestored transcation:transaction description:description];
                 break;
             }
             case SKPaymentTransactionStateFailed: {
-
-                description = [NSString stringWithFormat:@"交易失败 : %@",
-                               transaction.error.localizedDescription];
+                // 判断一下如果是交易换成其他地区的话，就不显示。
+                description = @"沒有購買完成";
+                NSLog(@"交易失敗 : %@",transaction.error.localizedDescription);
                [self purchaseHandleErrorCode:SKPaymentTransactionStateFailed transcation:transaction description:description];
             }
                 break;
             case SKPaymentTransactionStatePurchased:{
-                description = @"购买完成,向自己的服务器验证";
+                description = @"購買完成，請求服務器驗證";
                 [self purchaseResultHandleWithTransaction:transaction success:YES];
                 break;
             }
             default:{
-                description = @"未知情况";
+                description = @"未知情況";
                 break;
             }
         }
@@ -155,6 +156,7 @@ static LCPurchaseHelper * helper = nil;
 -(void)purchaseWithProduct:(SKProduct *)product
                  andUserId:(NSString *)userId
                   andCount:(NSInteger)count
+                   matchId:(NSString *)matchId
 {
   dispatch_async(dispatch_get_main_queue(), ^{
     if (product && userId){
@@ -162,6 +164,7 @@ static LCPurchaseHelper * helper = nil;
       payment.quantity = count;
       payment.applicationUsername = userId;
       [[SKPaymentQueue defaultQueue] addPayment:payment];
+      [self recordOrderInfo:userId andMatchId:matchId productId:product.productIdentifier];
     }
     else{
       NSLog(@"商品没添加 或者 userID没有，无法发起购买");
@@ -203,7 +206,8 @@ static LCPurchaseHelper * helper = nil;
   if (error){
     NSLog(@"NSJSONSerialization error :%@",error.localizedDescription);
   }
-  NSURL * serverURL = [NSURL URLWithString:TestReciptURL];
+//  NSURL * serverURL = [NSURL URLWithString:TestReciptURL];
+  NSURL * serverURL = [NSURL URLWithString:[self loadURL]];
   NSMutableURLRequest * request = [NSMutableURLRequest requestWithURL:serverURL];
   request.HTTPMethod = @"POST";
   request.HTTPBody = requestData;
@@ -228,8 +232,9 @@ static LCPurchaseHelper * helper = nil;
     if (purchaseSuccess){
       [self serverValidReceiptWithTransaction:transaction validSuccess:[dict[@"errorCode"] isEqualToString:@"success"]];
     }
-    else {
+    else { //购买失败结束交易
        [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
+       [self purchaseDeleteOrderWithOrderId:transaction.payment.applicationUsername];
     }
     
   }];
@@ -266,16 +271,41 @@ static LCPurchaseHelper * helper = nil;
 -(void)serverValidReceiptWithTransaction:(SKPaymentTransaction *)transaction
                             validSuccess:(BOOL)isSuccess{
   NSNumber * errorCode = @(101);
-  NSString * des = @"验证失败";
+  NSString * des = @"購買驗證失敗";
+//  [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
   if (isSuccess) {
      [[SKPaymentQueue defaultQueue] finishTransaction:transaction];
      errorCode = @(100);
     NSString * orderId = transaction.payment.applicationUsername ?: @"没有";
-    des = [NSString stringWithFormat:@"%@ : orderId:%@",@"验证成功",orderId];
+    des = [NSString stringWithFormat:@"%@",@"購買驗證成功"];
+    NSLog(@"orderId:%@  %@",orderId,des);
+    [self purchaseDeleteOrderWithOrderId:orderId];
   }
   [[NSNotificationCenter defaultCenter]postNotificationName:LCPurchaseProductsResult object:nil userInfo:
    @{@"errorCode":errorCode,@"transaction":transaction,@"description":des}];
 }
+
+#pragma mark - OrderHelp
+//根据当前的业务逻辑简单处理了
+-(void)recordOrderInfo:(NSString*)orderId andMatchId:(NSString *)matchId productId:(NSString *)pId
+{
+  NSDictionary * dict = @{@"matchId":matchId,@"orderId":orderId,@"productId":pId};
+  [[NSUserDefaults standardUserDefaults]setObject:dict forKey:LCOrderRecordKey];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+-(void)purchaseDeleteOrderWithOrderId:(NSString *)orderId
+{
+  [[NSUserDefaults standardUserDefaults] removeObjectForKey:LCOrderRecordKey];
+  [[NSUserDefaults standardUserDefaults] synchronize];
+}
+
+-(NSString *)loadURL
+{
+  return @"your server url";
+}
+
+
 
 
 

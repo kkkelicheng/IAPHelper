@@ -7,7 +7,14 @@
 //
 
 /*
- errorCode
+  获取商品errorCode
+   0 正常获取到商品 
+   1 商品数组长度为0
+   2 用户手机没开启内购
+ */
+
+/*
+ 交易 errorCode
 0     交易已经提交
 1     购买完成,向自己的服务器验证
 2     交易失败
@@ -47,16 +54,42 @@ RCT_EXPORT_METHOD
   [self.helper getProductsWithIndentifies:productIDs];
 }
 
+RCT_EXPORT_METHOD
+(goSystemSetting)
+{
+  [[UIApplication sharedApplication] openURL:[NSURL URLWithString:UIApplicationOpenSettingsURLString]];
+}
+
 //选择商品触发购买
 RCT_EXPORT_METHOD
 (chooseProducts:(NSString *)productID
                userID:(NSString *)userID
-                count:(NSNumber * __nonnull)count)
+                count:(NSNumber * __nonnull)count
+              matchId:(NSString * )matchId
+ )
 {
   NSLog(@"用户选择商品：%@",productID);
   SKProduct * p = [self getProductWithID:productID];
   if (p) {
-    [self.helper purchaseWithProduct:p andUserId:userID andCount:[count integerValue]];
+    [self.helper purchaseWithProduct:p andUserId:userID andCount:[count integerValue] matchId:matchId];
+  }
+  else {
+    NSLog(@"RN传过来的商品在原生的商品列表中未找到");
+  }
+}
+
+//恢复orderId 购买
+RCT_EXPORT_METHOD
+(continuePurchaseProducts:(NSString *)productID
+ userID:(NSString *)userID
+ count:(NSNumber * __nonnull)count
+matchId:(NSString * )matchId
+ )
+{
+  NSLog(@"用户选择商品：%@",productID);
+  SKProduct * p = [self getProductWithID:productID];
+  if (p) {
+    [self.helper purchaseWithProduct:p andUserId:userID andCount:[count integerValue] matchId:matchId];
   }
   else {
     NSLog(@"RN传过来的商品在原生的商品列表中未找到");
@@ -102,9 +135,11 @@ RCT_EXPORT_METHOD
 -(void)retrieveProducts:(NSNotification *)notification{
   NSLog(@"%s...\n info:%@",__FUNCTION__,notification.userInfo);
   NSArray * products = notification.userInfo[@"products"];
+  NSNumber * errorCode = notification.userInfo[@"errorCode"];
   NSArray * convertedProducts = [IAPManager convertProductsToDic:products];
   if (self.hasListeners)
-  [self sendEventWithName:RNEventReceivedProducts body:@{@"products":convertedProducts}];
+  [self sendEventWithName:RNEventReceivedProducts body:@{@"errorCode":errorCode,
+                                                         @"products":convertedProducts}];
 }
 
 -(void)purchaseResult:(NSNotification *)notification{
@@ -140,6 +175,19 @@ RCT_EXPORT_METHOD
     [container addObject:dict];
   }
   return [container copy];
+}
+
+#pragma mark - order
+
+RCT_EXPORT_METHOD
+(getUnFinishOrder:(RCTResponseSenderBlock)block)
+{
+  NSDictionary * orderInfo = @{@"matchId":@"-1",@"orderId":@"-1",@"productId":@"-1"};
+  NSDictionary * savedOrderInfo = [[NSUserDefaults standardUserDefaults]objectForKey:LCOrderRecordKey];
+  if (savedOrderInfo) {
+    orderInfo = savedOrderInfo;
+  }
+  block(@[orderInfo]);
 }
 
 

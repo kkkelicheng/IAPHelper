@@ -11,6 +11,7 @@
 
 extern NSString * const LCPurchaseProductsRetrievedNotification;
 extern NSString * const LCPurchaseProductsResult ;
+extern NSString * const LCOrderRecordKey ;
 
 @interface LCPurchaseHelper : NSObject
 @property (nonatomic,strong) NSArray * products;
@@ -25,7 +26,8 @@ extern NSString * const LCPurchaseProductsResult ;
 //购买商品
 -(void)purchaseWithProduct:(SKProduct *)product
                  andUserId:(NSString *)userId
-                  andCount:(NSInteger)count;
+                  andCount:(NSInteger)count
+                   matchId:(NSString *)matchId;
 
 //Observer
 -(void)startObserverIAP;
